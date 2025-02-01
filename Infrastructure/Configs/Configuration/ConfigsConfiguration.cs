@@ -1,4 +1,4 @@
-using Infrastructure.Configs.Sinks;
+using Infrastructure.Configs.Sources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -8,7 +8,7 @@ public static class ConfigsConfiguration
 {
     public static void AddColdConfig<TConfig>(
         this IServiceCollection services,
-        params ConfigOption[] configOptions)
+        params ConfigSource[] configOptions)
     where TConfig : class, new()
     {
         services.TryAddSingleton<IConfigProvider, ConfigProvider>();

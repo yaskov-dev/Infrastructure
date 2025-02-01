@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace Infrastructure.Logging.Sinks;
 
 public record LoggingOptions(
