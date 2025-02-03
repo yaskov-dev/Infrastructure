@@ -1,6 +1,7 @@
 using Elastic.Serilog.Sinks;
 using Infrastructure.Logging.Sinks;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
 using Serilog.Events;
 
@@ -28,7 +29,7 @@ public static class LoggingConfiguration
         {
             configuration.ConfigureFile(loggingOptions.FileOptions);
             if (loggingOptions.FileOptions.WithFileReader)
-                services.AddSingleton<IFileLogsReader, FileLogsReader>();
+                services.TryAddSingleton<IFileLogsReader, FileLogsReader>();
         }
         if (loggingOptions.ElasticSearchOptions != null)
             configuration.ConfigureElastic(loggingOptions.ElasticSearchOptions); // TODO: make elastic config better

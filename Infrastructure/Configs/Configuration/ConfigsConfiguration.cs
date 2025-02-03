@@ -7,15 +7,17 @@ namespace Infrastructure.Configs.Configuration;
 public static class ConfigsConfiguration
 {
     public static void AddColdConfig<TConfig>(
+        this IServiceCollection services)
+        where TConfig : class, new()
+    {
+        services.AddSingleton<TConfig>(_ => ConfigProvider.Get<TConfig>(ConfigSources.Default));
+    }
+    
+    public static void AddColdConfig<TConfig>(
         this IServiceCollection services,
-        params ConfigSource[] configOptions)
+        ConfigSource[] configOptions)
     where TConfig : class, new()
     {
-        services.TryAddSingleton<IConfigProvider, ConfigProvider>();
-        services.AddSingleton<TConfig>(scope =>
-        {
-            var configProvider = scope.GetRequiredService<IConfigProvider>();
-            return configProvider.Get<TConfig>(configOptions);
-        });
+        services.AddSingleton<TConfig>(_ => ConfigProvider.Get<TConfig>(configOptions));
     }
 }

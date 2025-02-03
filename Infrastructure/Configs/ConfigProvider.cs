@@ -1,31 +1,17 @@
 using System.Reflection;
+using Infrastructure.Application;
 using Infrastructure.Configs.Sources;
 using Infrastructure.Shared;
 
 namespace Infrastructure.Configs;
 
-public interface IConfigProvider
+public static class ConfigProvider
 {
-    /// <summary>
-    /// Reads config from sources. Sources is ordered by their priorities, Ascending
-    /// </summary>
-    /// <param name="configSources">Sources</param>
-    /// <typeparam name="T">Config type</typeparam>
-    /// <returns>Filled config</returns>
-    T Get<T>(params ConfigSource[] configSources)
-        where T : class, new();
-}
-
-public class ConfigProvider : IConfigProvider
-{
-    private readonly string separator;
+    public static T Get<T>() 
+        where T : class, new()
+        => Get<T>(ConfigSources.Default);
     
-    public ConfigProvider(string separator = "=")
-    {
-        this.separator = separator;
-    }
-
-    public T Get<T>(params ConfigSource[] configSources) 
+    public static  T Get<T>(ConfigSource[] configSources) 
         where T : class, new()
     {
         if (configSources.Length == 0)
@@ -46,15 +32,19 @@ public class ConfigProvider : IConfigProvider
         return config;
     }
     
-    private void FillConfig<T>(EnvironmentConfigSource environmentConfigSource, PropertyInfo[] properties, T config)
+    private static void FillConfig<T>(EnvironmentConfigSource environmentConfigSource, PropertyInfo[] properties, T config)
     {
         foreach (var property in properties)
         {
-            var envVar = Environment.GetEnvironmentVariable(property.Name);
+            var envNameAttr = property.GetCustomAttribute<EnvironmentVariableAttribute>();
+            if (envNameAttr?.Name == null)
+                throw new ConfigException($"Config variable does not contains Environment label. Need to Add attribute: {nameof(EnvironmentVariableAttribute)} to variable: {property.Name}");
+                
+            var envVar = Environment.GetEnvironmentVariable(envNameAttr.Name);
             if (envVar == null)
             {
                 if (environmentConfigSource.ThrowIfVariableNotExists)
-                    throw new ConfigException($"Environment does not contains variable: {property.Name} and option is true: {nameof(environmentConfigSource.ThrowIfVariableNotExists)}");
+                    throw new ConfigException($"Environment does not contains variable: {envNameAttr.Name} and option is true: {nameof(environmentConfigSource.ThrowIfVariableNotExists)}");
                 
                 continue;
             }
@@ -63,7 +53,7 @@ public class ConfigProvider : IConfigProvider
         }
     }
 
-    private void FillConfig<T>(FileConfigSource fileConfigSource, PropertyInfo[] properties, T config)
+    private static void FillConfig<T>(FileConfigSource fileConfigSource, PropertyInfo[] properties, T config)
     {
         var filePath = fileConfigSource.IsPathRelativeToCsproj
             ? BuildPathFromCsproj(fileConfigSource.Path)
@@ -71,23 +61,23 @@ public class ConfigProvider : IConfigProvider
         if (!File.Exists(filePath))
             throw new ConfigException($"Can not find ConfigFile. Path: {filePath}");
         
-        FillConfigFromFile(filePath, properties, config);
+        FillConfigFromFile(filePath, fileConfigSource.ValuesSeparator, properties, config);
     }
     
-    private void FillConfigFromFile<T>(string filePath, PropertyInfo[] properties, T config)
+    private static void FillConfigFromFile<T>(string filePath, string valuesSeparator, PropertyInfo[] properties, T config)
     {
         foreach (var line in BufferedFileReader.ReadNotEmptyOrWhiteSpacedLines(filePath))
         {
-            var separatorIndex = line.IndexOf(separator, StringComparison.InvariantCulture);
+            var separatorIndex = line.IndexOf(valuesSeparator, StringComparison.InvariantCulture);
             if (separatorIndex == -1)
-                throw new ConfigException($"ConfigLine does not contains separator({separator}). Line: {line}");
+                throw new ConfigException($"ConfigLine does not contains separator({valuesSeparator}). Line: {line}");
 
             var propName = line.AsSpan()[..(separatorIndex - 1)].Trim().ToString();
             var propValue = line.AsSpan()[(separatorIndex + 1)..].Trim().ToString();
             if (propName.Length == 0 || propValue.Length == 0)
                 throw new ConfigException($"ConfigLine does not contains prop or value. Line: {line}");
 
-            var property = properties.FirstOrDefault(e => e.Name == propName);
+            var property = properties.FirstOrDefault(e => e.Name.ToLower() == propName.ToLower());
             if (property == null)
                 continue;
             
@@ -95,7 +85,7 @@ public class ConfigProvider : IConfigProvider
         }
     }
 
-    private string BuildPathFromCsproj(string path)
+    private static string BuildPathFromCsproj(string path)
     {
         return path.StartsWith(Path.PathSeparator)
             ? $"{Environment.CurrentDirectory}{path}"
